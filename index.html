@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tus Objetivos USIL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      .spin { animation: spin 1s linear infinite; display: inline-block; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel" data-presets="react,env">
+    const { useState, useMemo } = React;
+
+    /* ── Iconos inline ────────────────────────────────── */
+    const Ic = ({ d, size = 20, className = '' }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size}
+        viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        className={className}>
+        {d.map((p, i) => typeof p === 'string' && p.startsWith('<circle')
+          ? null : p)}
+        {d}
+      </svg>
+    );
+
+    const SvgIcon = ({ paths, size = 20, className = '', spin = false }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size}
+        viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        className={`${className}${spin ? ' spin' : ''}`}
+        dangerouslySetInnerHTML={{ __html: paths }} />
+    );
+
+    const Target      = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>' />;
+    const ChevRight   = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<polyline points="9 18 15 12 9 6"/>' />;
+    const CheckCircle = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>' />;
+    const AlertCircle = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>' />;
+    const Briefcase   = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>' />;
+    const TrendingUp  = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>' />;
+    const Zap         = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>' />;
+    const Clipboard   = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>' />;
+    const Rocket      = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>' />;
+    const Edit3       = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>' />;
+    const RefreshCw   = ({ size=20, className='' , spin=false}) => <SvgIcon size={size} className={className} spin={spin} paths='<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>' />;
+    const SaveIcon    = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>' />;
+    const ListChecks  = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><polyline points="3 6 4 7 6 5"/><polyline points="3 12 4 13 6 11"/><polyline points="3 18 4 19 6 17"/>' />;
+    const XIcon       = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>' />;
+    const ShieldAlert = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>' />;
+    const UserCheck   = ({ size=20, className='' }) => <SvgIcon size={size} className={className} paths='<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/>' />;
+
+    /* ── Constantes ───────────────────────────────────── */
+    // API KEY DE GROQ (100% GRATIS - Obtén en console.groq.com)
+    const GROQ_API_KEY = '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'; // ✅ CONFIGURADO
+
+    const API_CONFIGS = {
+      groq: {
+        key: GROQ_API_KEY,
+        model: 'llama-3.3-70b-versatile',
+        endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+        name: 'IA'
+      }
+    };
+
+    const GOAL_TYPES = [
+      { id: 'primary_kpi',   label: 'KPI Principal',       Icon: Target      },
+      { id: 'secondary_kpi', label: 'KPI Secundario',      Icon: TrendingUp  },
+      { id: 'improvement',   label: 'Mejora / Brechas',    Icon: AlertCircle },
+      { id: 'efficiency',    label: 'Mejora Continua',     Icon: Zap         },
+      { id: 'project',       label: 'Proyecto / Impacto',  Icon: Rocket      },
+    ];
+
+    /* ── Helpers ──────────────────────────────────────── */
+    const callAI = async (prompt, systemPrompt, expectJSON = false) => {
+      const config = API_CONFIGS.groq;
+      if (!config.key || !config.key.trim()) {
+        throw new Error('FALTA_API_KEY');
+      }
+
+      // GROQ (100% GRATIS - Ultra rápido)
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt + (expectJSON ? '\n\nResponde ÚNICAMENTE con un JSON válido sin explicaciones.' : '') }
+      ];
+
+      const payload = {
+        model: config.model,
+        messages,
+        temperature: 0.8,
+        max_tokens: 2048
+      };
+
+      if (expectJSON) {
+        payload.response_format = { type: 'json_object' };
+      }
+
+      try {
+        const res = await fetch(config.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.key}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || `HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        let text = data.choices?.[0]?.message?.content;
+
+        if (!text) throw new Error('Respuesta vacía de la IA');
+
+        return expectJSON ? JSON.parse(text) : text;
+
+      } catch (e) {
+        throw e;
+      }
+    };
+
+    const normalizeInsight = (raw) => {
+      const text = String(raw || '').replace(/\r\n/g, '\n').trim();
+      if (!text) return [{ type: 'paragraph', content: 'Sin contenido.' }];
+
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      const blocks = [];
+      let pBuf = [], lBuf = [], lType = null;
+
+      const flushP = () => { if (pBuf.length) { blocks.push({ type: 'paragraph', content: pBuf.join(' ') }); pBuf = []; } };
+      const flushL = () => { if (lBuf.length) { blocks.push({ type: lType, items: [...lBuf] }); lBuf = []; lType = null; } };
+
+      for (const line of lines) {
+        const clean = line.replace(/\*\*/g, '');
+        const num  = clean.match(/^\d+[.)]\s+(.+)$/);
+        const bull = clean.match(/^[-*•]\s+(.+)$/);
+        const head = clean.match(/^#{1,3}\s+(.+)$/) || (clean.endsWith(':') && clean.length < 80 ? [null, clean.slice(0, -1)] : null);
+
+        if (head)  { flushP(); flushL(); blocks.push({ type: 'heading', content: head[1] }); continue; }
+        if (num)   { flushP(); if (lType !== 'ordered')   { flushL(); lType = 'ordered';   } lBuf.push(num[1]);  continue; }
+        if (bull)  { flushP(); if (lType !== 'unordered') { flushL(); lType = 'unordered'; } lBuf.push(bull[1]); continue; }
+        if (lType) { flushL(); }
+        pBuf.push(clean);
+      }
+      flushP(); flushL();
+      return blocks.length ? blocks : [{ type: 'paragraph', content: text }];
+    };
+
+    /* ── App principal ────────────────────────────────── */
+    const App = () => {
+      const [step, setStep]               = useState(0);
+      const [loading, setLoading]         = useState(false);
+      const [actionLoading, setActionLoading] = useState(null);
+      const [error, setError]             = useState(null);
+      const [goals, setGoals]             = useState([]);
+      const [editIdx, setEditIdx]         = useState(null);
+      const [aiInsight, setAiInsight]     = useState(null);
+      const [userData, setUserData]       = useState({
+        role: '', area: '', responsibilities: '', businessPriorities: '', gaps: '', kpis: ''
+      });
+
+      const setField = (f, v) => setUserData(u => ({ ...u, [f]: v }));
+
+      const parsedInsight = useMemo(() => aiInsight ? normalizeInsight(aiInsight.content) : [], [aiInsight]);
+
+
+      const generateGoals = async () => {
+        setLoading(true); setError(null);
+
+        const prompt = `Genera EXACTAMENTE 5 objetivos SMART con esta información:
+
+Puesto: ${userData.role}
+Área: ${userData.area}
+Responsabilidades: ${userData.responsibilities}
+Prioridades del área: ${userData.businessPriorities}
+Brechas: ${userData.gaps}
+KPIs directos: ${userData.kpis}
+
+Devuelve un JSON con esta estructura exacta:
+{
+  "goals": [
+    {
+      "typeId": "primary_kpi o secondary_kpi o improvement o efficiency o project",
+      "description": "Descripción clara del objetivo",
+      "indicator": "KPI o métrica específica",
+      "target": "Meta numérica o cualitativa",
+      "measurementType": "Cómo se medirá",
+      "deadline": "Fecha límite",
+      "justification": "Por qué es importante este objetivo"
+    }
+  ]
+}`;
+
+        const systemPrompt = `Eres experto en Gestión del Desempeño. Genera EXACTAMENTE 5 objetivos SMART para el colaborador para el año ${new Date().getFullYear()}.
+
+REGLAS ESTRICTAS:
+1. Solo RESULTADOS medibles. Prohibido competencias o habilidades blandas.
+2. Cada objetivo debe ser 100% ejecutable por el propio colaborador dentro de su campo de acción.
+3. Usa SOLO estos typeId: primary_kpi, secondary_kpi, improvement, efficiency, project
+4. Tono profesional, conciso y orientado a resultados.
+5. RESPONDE ÚNICAMENTE CON EL JSON, SIN EXPLICACIONES.`;
+
+        try {
+          const result = await callAI(prompt, systemPrompt, true);
+
+          if (result && result.goals && Array.isArray(result.goals)) {
+            setGoals(result.goals);
+            setStep(4);
+          } else {
+            throw new Error('Formato de respuesta inválido');
+          }
+        } catch (e) {
+          let errorMsg = e.message;
+          if (errorMsg.includes('FALTA_API_KEY')) {
+            errorMsg = 'Falta configurar la API key de Groq. Abre index.html y configúrala en la línea 60.';
+          }
+          setError(`Error IA: ${errorMsg}`);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const generatePlan = async (idx) => {
+        setActionLoading(`plan-${idx}`); setError(null);
+        try {
+          const prompt = `Objetivo: ${goals[idx].description}\nIndicador: ${goals[idx].indicator}\nMeta: ${goals[idx].target}`;
+          const systemPrompt = `Eres coach de ejecución profesional. Genera un plan de acción de 5 pasos concretos, numerados y ejecutables por el colaborador de forma autónoma. Cada paso debe ser accionable esta semana. Usa formato: "1. [Acción concreta]: [Detalle breve]".`;
+
+          const content = await callAI(prompt, systemPrompt, false);
+          setAiInsight({ title: 'Plan de Acción Autónomo', content });
+        } catch (e) {
+          setError(`Error al generar plan: ${e.message}`);
+        } finally {
+          setActionLoading(null);
+        }
+      };
+
+      const generateRisks = async (idx) => {
+        setActionLoading(`risk-${idx}`); setError(null);
+        try {
+          const prompt = `Objetivo: ${goals[idx].description}\nIndicador: ${goals[idx].indicator}`;
+          const systemPrompt = `Eres experto en gestión de riesgos de desempeño. Identifica exactamente 3 riesgos internos (que dependen de la gestión del colaborador) que podrían impedir cumplir este objetivo. Para cada riesgo incluye: nombre del riesgo, descripción breve y una acción de mitigación concreta. Usa formato numerado.`;
+
+          const content = await callAI(prompt, systemPrompt, false);
+          setAiInsight({ title: 'Control de Riesgos', content });
+        } catch (e) {
+          setError(`Error al analizar riesgos: ${e.message}`);
+        } finally {
+          setActionLoading(null);
+        }
+      };
+
+      const updateGoal = (idx, f, v) => { const g = [...goals]; g[idx][f] = v; setGoals(g); };
+
+      /* ── Bloque de insight ───────────────────────────── */
+      const renderBlock = (b, i) => {
+        if (b.type === 'heading')   return <h4 key={i} className="text-sm font-extrabold text-slate-800 uppercase tracking-wide mt-5 mb-1 border-b pb-1">{b.content}</h4>;
+        if (b.type === 'ordered')   return <ol key={i} className="list-decimal pl-5 space-y-2 text-sm text-slate-700">{b.items.map((it,j) => <li key={j} className="leading-relaxed">{it}</li>)}</ol>;
+        if (b.type === 'unordered') return <ul key={i} className="list-disc pl-5 space-y-2 text-sm text-slate-700">{b.items.map((it,j) => <li key={j} className="leading-relaxed">{it}</li>)}</ul>;
+        return <p key={i} className="text-sm text-slate-700 leading-relaxed">{b.content}</p>;
+      };
+
+      /* ── Render ──────────────────────────────────────── */
+      return (
+        <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
+          <div className="max-w-3xl mx-auto">
+
+            {/* Header */}
+            <header className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-lg shadow-blue-200">U</div>
+                <span className="font-bold text-xl tracking-tight">Tus Objetivos <span className="text-blue-600">USIL</span></span>
+              </div>
+              <span className="px-3 py-1.5 bg-white rounded-full border border-gray-200 text-xs font-bold text-gray-500 shadow-sm">
+                {step === 4 ? 'Plan Anual ✓' : `Paso ${step + 1} / 4`}
+              </span>
+            </header>
+
+            {/* Progreso */}
+            <div className="flex gap-1.5 mb-8 max-w-md mx-auto">
+              {[0,1,2,3,4].map(i => (
+                <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${step >= i ? 'bg-blue-600' : 'bg-gray-200'}`} />
+              ))}
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                {error}
+              </div>
+            )}
+
+            {/* Contenido */}
+            <main className="bg-white rounded-3xl p-6 md:p-10 shadow-xl shadow-slate-200/60 min-h-[480px] border border-gray-50">
+
+              {/* Paso 0 – Portada */}
+              {step === 0 && (
+                <div className="text-center py-8">
+                  <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
+                    <Target size={40} />
+                  </div>
+                  <h1 className="text-3xl font-bold text-gray-900 mb-3 tracking-tight">Tus Objetivos USIL</h1>
+                  <p className="text-gray-500 mb-8 max-w-md mx-auto text-base leading-relaxed">
+                    Define metas SMART respaldadas por Inteligencia Artificial que impulsen tus resultados
+                  </p>
+                  <button onClick={() => setStep(1)}
+                    className="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold inline-flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg hover:scale-105 active:scale-95">
+                    Comenzar <ChevRight size={20} />
+                  </button>
+                </div>
+              )}
+
+              {/* Paso 1 – Puesto */}
+              {step === 1 && (
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3">
+                    <Briefcase size={22} className="text-blue-600" />
+                    <h2 className="text-xl font-bold text-gray-800">Tu Puesto Actual</h2>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Nombre del Puesto</label>
+                      <input type="text" className="w-full p-3 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none"
+                        placeholder="Ej: Analista Senior de Tesorería" value={userData.role} onChange={e => setField('role', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Área o Unidad</label>
+                      <input type="text" className="w-full p-3 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none"
+                        placeholder="Ej: Finanzas / Tesorería" value={userData.area} onChange={e => setField('area', e.target.value)} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Responsabilidades Directas del Cargo</label>
+                    <textarea rows="3" className="w-full p-3 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none"
+                      placeholder="Qué procesos o entregables dependen exclusivamente de ti?" value={userData.responsibilities} onChange={e => setField('responsibilities', e.target.value)} />
+                  </div>
+                  <div className="flex justify-end pt-2">
+                    <button onClick={() => setStep(2)} className="bg-blue-600 text-white px-7 py-3 rounded-xl font-semibold hover:bg-blue-700 transition shadow-md">
+                      Siguiente →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Paso 2 – Prioridades */}
+              {step === 2 && (
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3">
+                    <TrendingUp size={22} className="text-blue-600" />
+                    <h2 className="text-xl font-bold text-gray-800">Prioridades del Año</h2>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 uppercase mb-1">¿Qué espera el área de ti este año?</label>
+                    <textarea rows="3" className="w-full p-3 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none"
+                      placeholder="Aterriza las metas globales a tu contribución individual..." value={userData.businessPriorities} onChange={e => setField('businessPriorities', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 uppercase mb-1">KPIs que gestionas directamente</label>
+                    <input type="text" className="w-full p-3 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none"
+                      placeholder="Ej: Días de mora, % conciliación, tiempo de cierre..." value={userData.kpis} onChange={e => setField('kpis', e.target.value)} />
+                  </div>
+                  <div className="flex justify-between pt-2">
+                    <button onClick={() => setStep(1)} className="text-gray-500 font-medium hover:text-gray-800">← Atrás</button>
+                    <button onClick={() => setStep(3)} className="bg-blue-600 text-white px-7 py-3 rounded-xl font-semibold hover:bg-blue-700 transition shadow-md">
+                      Siguiente →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Paso 3 – Brechas */}
+              {step === 3 && (
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3">
+                    <Clipboard size={22} className="text-blue-600" />
+                    <h2 className="text-xl font-bold text-gray-800">Autonomía y Mejora</h2>
+                  </div>
+                  <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-xl">
+                    <div className="flex gap-3 items-start">
+                      <UserCheck size={18} className="text-blue-600 shrink-0 mt-0.5" />
+                      <p className="text-xs text-blue-800 leading-relaxed font-medium">
+                        <strong>Regla clave:</strong> El resultado final debe depender 100% de tus decisiones y esfuerzo. No incluyas metas que dependan de aprobaciones externas.
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Brechas u oportunidades de mejora en tu gestión</label>
+                    <textarea rows="3" className="w-full p-3 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none"
+                      placeholder="¿Qué procesos bajo tu control directo podrías optimizar este año?" value={userData.gaps} onChange={e => setField('gaps', e.target.value)} />
+                  </div>
+
+                  <div className="flex justify-between pt-2">
+                    <button onClick={() => setStep(2)} className="text-gray-500 font-medium hover:text-gray-800">← Atrás</button>
+                    <button onClick={generateGoals} disabled={loading}
+                      className="bg-blue-700 text-white px-8 py-3 rounded-xl font-bold inline-flex items-center gap-2 hover:bg-blue-800 shadow-lg transition disabled:opacity-50 hover:scale-105 active:scale-95">
+                      {loading ? <RefreshCw size={18} spin={true} /> : <Zap size={18} />}
+                      {loading ? 'Generando con IA...' : 'Generar 5 Objetivos con IA'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Paso 4 – Resultados */}
+              {step === 4 && (
+                <div className="space-y-6">
+                  <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex items-center gap-3">
+                    <CheckCircle size={22} className="text-green-600 shrink-0" />
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900">Plan Individual de Desempeño {new Date().getFullYear()}</h2>
+                      <p className="text-xs text-gray-400 font-medium">5 objetivos SMART generados con Gemini AI · Revisa, edita y exporta</p>
+                    </div>
+                  </div>
+
+                  {goals.map((goal, idx) => {
+                    const info = GOAL_TYPES.find(t => t.id === goal.typeId) || GOAL_TYPES[0];
+                    const GoalIcon = info.Icon;
+                    const isEdit = editIdx === idx;
+                    return (
+                      <div key={idx} className="bg-white border-2 border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all">
+                        <div className="bg-gray-50 px-5 py-3 border-b border-gray-100 flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <span className="bg-white border border-gray-200 rounded-lg p-1 text-blue-600"><GoalIcon size={15} /></span>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{info.label}</span>
+                          </div>
+                          <button onClick={() => setEditIdx(isEdit ? null : idx)}
+                            className={`p-2 rounded-xl transition ${isEdit ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-blue-600 hover:bg-white border border-transparent hover:border-gray-200'}`}>
+                            {isEdit ? <SaveIcon size={15} /> : <Edit3 size={15} />}
+                          </button>
+                        </div>
+                        <div className="p-5">
+                          {isEdit ? (
+                            <div className="space-y-3">
+                              <textarea rows="3" className="w-full p-3 border-2 border-gray-100 rounded-xl text-sm"
+                                value={goal.description} onChange={e => updateGoal(idx, 'description', e.target.value)} />
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-400 uppercase">Indicador</label>
+                                  <input className="w-full p-2 border rounded-lg text-xs mt-1" value={goal.indicator} onChange={e => updateGoal(idx, 'indicator', e.target.value)} />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-400 uppercase">Meta del Año</label>
+                                  <input className="w-full p-2 border rounded-lg text-xs mt-1" value={goal.target} onChange={e => updateGoal(idx, 'target', e.target.value)} />
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <h3 className="font-bold text-gray-800 leading-snug">{goal.description}</h3>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                  <span className="block text-[10px] text-gray-400 font-bold uppercase mb-0.5">KPI Personal</span>
+                                  <span className="text-sm font-bold text-slate-700">{goal.indicator}</span>
+                                </div>
+                                <div className="bg-blue-50 p-2.5 rounded-xl border border-blue-100">
+                                  <span className="block text-[10px] text-blue-400 font-bold uppercase mb-0.5">Meta Final</span>
+                                  <span className="text-sm font-bold text-blue-800">{goal.target}</span>
+                                </div>
+                              </div>
+                              <div className="flex gap-2 pt-3 border-t border-gray-50">
+                                <button disabled={!!actionLoading} onClick={() => generatePlan(idx)}
+                                  className="flex-1 py-2.5 text-[10px] font-bold uppercase bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition flex items-center justify-center gap-1.5 disabled:opacity-50">
+                                  {actionLoading === `plan-${idx}` ? <RefreshCw size={12} spin={true} /> : <ListChecks size={13} />}
+                                  Plan Individual ✦
+                                </button>
+                                <button disabled={!!actionLoading} onClick={() => generateRisks(idx)}
+                                  className="flex-1 py-2.5 text-[10px] font-bold uppercase bg-amber-50 text-amber-700 rounded-xl hover:bg-amber-100 transition flex items-center justify-center gap-1.5 disabled:opacity-50">
+                                  {actionLoading === `risk-${idx}` ? <RefreshCw size={12} spin={true} /> : <ShieldAlert size={13} />}
+                                  Riesgos ✦
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <div className="flex flex-col items-center gap-4 pt-6 border-t">
+                    <button onClick={() => window.print()}
+                      className="bg-gray-900 text-white px-10 py-4 rounded-2xl font-bold shadow-xl hover:bg-black transition hover:scale-105 active:scale-95">
+                      Exportar para Evaluación
+                    </button>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest text-center">
+                      Estas metas son de tu responsabilidad directa y serán evaluadas al cierre del año
+                    </p>
+                  </div>
+                </div>
+              )}
+
+            </main>
+
+            <footer className="mt-10 text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest space-y-1">
+              <div>Resultados directos · Autonomía total · Desempeño medible</div>
+              <div>Impulsado con IA · USIL {new Date().getFullYear()}</div>
+            </footer>
+          </div>
+
+          {/* Popup Insight */}
+          {aiInsight && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden border border-gray-100">
+                <div className="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
+                  <h3 className="font-bold text-gray-800 text-base">{aiInsight.title}</h3>
+                  <button onClick={() => setAiInsight(null)}
+                    className="p-1.5 hover:bg-gray-200 rounded-full transition">
+                    <XIcon size={18} />
+                  </button>
+                </div>
+                <div className="p-6 max-h-[60vh] overflow-y-auto">
+                  <div className="space-y-3">
+                    {parsedInsight.map((b, i) => renderBlock(b, i))}
+                  </div>
+                </div>
+                <div className="px-6 py-4 bg-gray-50 border-t flex justify-center">
+                  <button onClick={() => setAiInsight(null)}
+                    className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold hover:bg-blue-700 transition shadow-md active:scale-95">
+                    Entendido, manos a la obra
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+  </body>
+</html>
