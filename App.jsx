@@ -1,4 +1,55 @@
-import React, { useMemo, useState } from 'https://esm.sh/react@18.3.1';
+import React, { useMemo, useState, useEffect } from 'https://esm.sh/react@18.3.1';
+// URL del Apps Script WebApp para guardar en Google Sheets
+const SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbydZv701e88_LK56jcse01oE_dw2zVOFL7QF8rwaYYbAhRLhSXh719vEAPM9ITiAiax7Q/exec";
+// Convierte los datos del usuario y los objetivos a un array plano para Sheets
+function buildSheetRow(userData, goals) {
+  const base = [
+    userData.fullName || "",
+    userData.dni || "",
+    userData.role || "",
+    userData.area || "",
+    userData.responsibilities || "",
+    userData.businessPriorities || "",
+    userData.kpis || "",
+    userData.gaps || ""
+  ];
+  // Para cada objetivo, agrega sus campos en orden
+  for (let i = 0; i < 5; i++) {
+    const g = goals[i] || {};
+    base.push(
+      g.typeId || "",
+      g.description || "",
+      g.indicator || "",
+      g.target || "",
+      g.measurementType || "",
+      g.deadline || "",
+      g.justification || ""
+    );
+  }
+  return base;
+}
+// Envía los datos a Google Sheets vía fetch
+async function sendToSheets(userData, goals, setError, setSuccess) {
+  try {
+    const row = buildSheetRow(userData, goals);
+    const res = await fetch(SHEETS_WEBAPP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ row })
+    });
+    const data = await res.json();
+    if (data.success) {
+      setSuccess("¡Datos enviados correctamente a Google Sheets!");
+      setError(null);
+    } else {
+      setError("Error al guardar en Sheets: " + (data.error || ""));
+      setSuccess(null);
+    }
+  } catch (err) {
+    setError("Error de red o formato: " + err.message);
+    setSuccess(null);
+  }
+}
 import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
 import {
   Target,
@@ -19,51 +70,65 @@ import {
   UserCheck,
 } from 'https://esm.sh/lucide-react@0.542.0';
 
-const API_KEY_STORAGE = 'gemini_api_key';
+const API_KEY_STORAGE = 'ai_api_key';
 
 const GOAL_TYPES = [
   {
     id: 'primary_kpi',
-    label: 'Resultado (KPI Principal)',
+    label: 'Objetivo de resultados (KPI principal del puesto)',
     icon: Target,
     description: 'El indicador mas critico de tu exito en tu puesto actual.',
   },
   {
     id: 'secondary_kpi',
-    label: 'Resultado (KPI Secundario)',
+    label: 'Objetivo de resultados (KPI secundario)',
     icon: TrendingUp,
     description: 'Metrica de apoyo que depende directamente de tu gestion.',
   },
   {
     id: 'improvement',
-    label: 'Mejora (Brechas)',
+    label: 'Objetivo de mejora (basado en brechas de desempeno)',
     icon: AlertCircle,
     description: 'Cierre de brechas de desempeno detectadas en tu ejecucion.',
   },
   {
     id: 'efficiency',
-    label: 'Eficiencia / Mejora Continua',
+    label: 'Objetivo de eficiencia o mejora continua',
     icon: Zap,
     description: 'Optimizacion de procesos dentro de tu campo de accion.',
   },
   {
     id: 'project',
-    label: 'Proyecto / Impacto',
+    label: 'Objetivo de proyecto, entregable o impacto (segun el rol)',
     icon: Rocket,
     description: 'Entregable estrategico que lideras este ano.',
   },
 ];
 
-const buildEndpoint = (key) => {
-  const baseUrl =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent';
+const CORPORATE_LOGO_SRC = './assets/usil-corporacion-logo.png';
 
-  if (!key || !key.trim()) {
-    return null;
+
+// Detecta si la key es de Groq o Gemini
+function getApiProvider(key) {
+  if (!key) return 'none';
+  // Groq: gsk_... o sk-... (ambos posibles)
+  if (key.startsWith('gsk_') || key.startsWith('sk-')) return 'groq';
+  return 'gemini';
+}
+
+function buildEndpoint(key) {
+  const provider = getApiProvider(key);
+  if (provider === 'groq') {
+    // Si estamos en navegador, usar proxy CORS
+    if (typeof window !== 'undefined') {
+      return 'https://corsproxy.io/?https://api.groq.com/openai/v1/chat/completions';
+    }
+    return 'https://api.groq.com/openai/v1/chat/completions';
   }
-
+  // Gemini por defecto
+  const baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent';
   return `${baseUrl}?key=${encodeURIComponent(key.trim())}`;
-};
+}
 
 const normalizeInsight = (rawText) => {
   const safeText = String(rawText || '')
@@ -149,7 +214,22 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+  // Para evitar múltiples envíos automáticos
+  const [autoSent, setAutoSent] = useState(false);
+    // Enviar automáticamente al llegar a la vista final (step 4)
+    useEffect(() => {
+      if (step === 4 && goals.length > 0 && !autoSent) {
+        sendToSheets(userData, goals, setError, setSuccess);
+        setAutoSent(true);
+      }
+      if (step !== 4) {
+        setAutoSent(false); // Permite reenviar si el usuario regresa y vuelve a avanzar
+      }
+    }, [step, goals, userData, autoSent]);
   const [userData, setUserData] = useState({
+    fullName: '',
+    dni: '',
     role: '',
     area: '',
     level: '',
@@ -170,68 +250,82 @@ const App = () => {
     return normalizeInsight(aiInsight.content);
   }, [aiInsight]);
 
-  const callGemini = async (prompt, systemPrompt, responseSchema = null) => {
+
+  // Llama a Gemini o Groq según la key
+  const callAI = async (prompt, systemPrompt, responseSchema = null) => {
     let retries = 0;
     const maxRetries = 5;
     const delays = [1000, 2000, 4000, 8000, 16000];
+    const provider = getApiProvider(runtimeApiKey);
 
     while (retries < maxRetries) {
       try {
         const endpoint = buildEndpoint(runtimeApiKey);
-        if (!endpoint) {
-          throw new Error('API_KEY_MISSING');
-        }
+        if (!endpoint) throw new Error('API_KEY_MISSING');
 
-        const payload = {
-          contents: [{ parts: [{ text: prompt }] }],
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-        };
-
-        if (responseSchema) {
-          payload.generationConfig = {
-            responseMimeType: 'application/json',
-            responseSchema,
+        if (provider === 'groq') {
+          // Formato OpenAI
+          const payload = {
+            model: 'openai/gpt-oss-120b', // Modelo Groq actualizado
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.7
           };
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${runtimeApiKey}`
+            },
+            body: JSON.stringify(payload)
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            // Mostrar mensaje de error real de Groq si existe
+            const apiError = data?.error?.message || data?.error || 'API Error';
+            throw new Error(apiError);
+          }
+          const text = data.choices?.[0]?.message?.content;
+          if (!text) throw new Error('Respuesta vacia de IA');
+          return text;
+        } else {
+          // Gemini
+          const payload = {
+            contents: [{ parts: [{ text: prompt }] }],
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+          };
+          if (responseSchema) {
+            payload.generationConfig = {
+              responseMimeType: 'application/json',
+              responseSchema,
+            };
+          }
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) throw new Error('API Error');
+          const data = await response.json();
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!text) throw new Error('Respuesta vacia de IA');
+          return responseSchema ? JSON.parse(text) : text;
         }
-
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          throw new Error('API Error');
-        }
-
-        const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!text) {
-          throw new Error('Respuesta vacia de IA');
-        }
-
-        return responseSchema ? JSON.parse(text) : text;
       } catch (err) {
-        if (err.message === 'API_KEY_MISSING') {
-          throw err;
-        }
-
-        if (retries === maxRetries - 1) {
-          throw err;
-        }
-
+        if (err.message === 'API_KEY_MISSING') throw err;
+        if (retries === maxRetries - 1) throw err;
         await new Promise((res) => setTimeout(res, delays[retries]));
         retries += 1;
       }
     }
-
     throw new Error('No fue posible completar la llamada a IA');
   };
 
   const generateGoals = async () => {
     if (!runtimeApiKey.trim()) {
-      setError('Ingresa tu API key de Gemini para generar recomendaciones personalizadas.');
+      setError('Ingresa tu API key de Gemini o Groq para generar recomendaciones personalizadas.');
       return;
     }
 
@@ -280,14 +374,23 @@ REGLAS CRITICAS:
     const userPrompt = `Contexto: Puesto actual: ${userData.role}, Area: ${userData.area}, Responsabilidades directas: ${userData.responsibilities}, Prioridades del area para este ano: ${userData.businessPriorities}, Brechas de desempeno en su puesto actual: ${userData.gaps}, KPIs que gestiona directamente: ${userData.kpis}.`;
 
     try {
-      const result = await callGemini(userPrompt, systemPrompt, schema);
+      const resultText = await callAI(userPrompt, systemPrompt, schema);
+      // Si es JSON válido, lo parsea (Gemini), si es texto plano (Groq), intenta extraer objetivos
+      let result = {};
+      try {
+        result = typeof resultText === 'string' ? JSON.parse(resultText) : resultText;
+      } catch {
+        // Si no es JSON, intentar parsear objetivos desde texto plano
+        // (opcional: aquí puedes agregar lógica para extraer objetivos de texto si Groq responde en texto)
+        result = { goals: [] };
+      }
       setGoals(result.goals || []);
       setStep(4);
     } catch (err) {
       if (err.message === 'API_KEY_MISSING') {
-        setError('Falta API key de Gemini. Agregala y vuelve a intentar.');
+        setError('Falta API key. Agregala y vuelve a intentar.');
       } else {
-        setError('Error al conectar con Gemini. Revisa tu API key o tu conexion e intenta de nuevo.');
+        setError('Error al conectar con la IA. Revisa tu API key o tu conexion e intenta de nuevo.');
       }
     } finally {
       setLoading(false);
@@ -296,7 +399,7 @@ REGLAS CRITICAS:
 
   const generateActionPlan = async (index) => {
     if (!runtimeApiKey.trim()) {
-      setError('Ingresa tu API key de Gemini para generar planes de accion.');
+      setError('Ingresa tu API key de Gemini o Groq para generar planes de accion.');
       return;
     }
 
@@ -308,10 +411,10 @@ REGLAS CRITICAS:
       'Actua como coach de ejecucion. Genera un plan de 5 pasos, claro y ordenado. Usa secciones y lista numerada para facilitar lectura.';
 
     try {
-      const content = await callGemini(`Objetivo: ${goal.description}`, systemPrompt);
-      setAiInsight({ title: 'Plan de Accion Autonomo', content, type: 'plan' });
+      const content = await callAI(`Objetivo: ${goal.description}`, systemPrompt);
+      setAiInsight({ title: 'Que acciones te ayudaran a alcanzar tu objetivo?', content, type: 'plan' });
     } catch (err) {
-      setError('Error al generar el plan con Gemini.');
+      setError('Error al generar el plan con IA.');
     } finally {
       setActionLoading(null);
     }
@@ -319,7 +422,7 @@ REGLAS CRITICAS:
 
   const analyzeRisks = async (index) => {
     if (!runtimeApiKey.trim()) {
-      setError('Ingresa tu API key de Gemini para analizar riesgos.');
+      setError('Ingresa tu API key de Gemini o Groq para analizar riesgos.');
       return;
     }
 
@@ -331,10 +434,10 @@ REGLAS CRITICAS:
       'Identifica 3 riesgos que impidan cumplir este objetivo y dependan de la gestion propia del colaborador. Devuelve cada riesgo con su mitigacion en formato ordenado.';
 
     try {
-      const content = await callGemini(`Objetivo: ${goal.description}`, systemPrompt);
-      setAiInsight({ title: 'Control de Riesgos', content, type: 'risk' });
+      const content = await callAI(`Objetivo: ${goal.description}`, systemPrompt);
+      setAiInsight({ title: 'Que podria impedir que alcances tu objetivo?', content, type: 'risk' });
     } catch (err) {
-      setError('Error al analizar riesgos con Gemini.');
+      setError('Error al analizar riesgos con IA.');
     } finally {
       setActionLoading(null);
     }
@@ -409,9 +512,9 @@ REGLAS CRITICAS:
             <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
               <Target size={40} />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-4 tracking-tight">Tus Objetivos USIL</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-4 tracking-tight">Objetivos USIL: Tu Ruta de Resultados</h1>
             <p className="text-gray-600 mb-8 max-w-lg mx-auto leading-relaxed text-lg font-medium">
-              Define metas SMART que impulsen resultados
+              Crea metas SMART con IA para priorizar mejor y avanzar con foco en tu dia a dia
             </p>
             <button
               onClick={() => setStep(1)}
@@ -430,6 +533,26 @@ REGLAS CRITICAS:
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Nombres y Apellidos</label>
+                <input
+                  type="text"
+                  className="w-full p-3 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  placeholder="Ej: Maria Fernanda Lopez Perez"
+                  value={userData.fullName}
+                  onChange={(e) => setUserData({ ...userData, fullName: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">DNI</label>
+                <input
+                  type="text"
+                  className="w-full p-3 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  placeholder="Ej: 12345678"
+                  value={userData.dni}
+                  onChange={(e) => setUserData({ ...userData, dni: e.target.value })}
+                />
+              </div>
+              <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Nombre Exacto del Puesto</label>
                 <input
                   type="text"
@@ -440,7 +563,7 @@ REGLAS CRITICAS:
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Area o Unidad</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Area</label>
                 <input
                   type="text"
                   className="w-full p-3 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
@@ -451,7 +574,7 @@ REGLAS CRITICAS:
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Responsabilidades Directas de tu Cargo</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Tus Principales Funciones</label>
               <textarea
                 rows="3"
                 className="w-full p-3 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
@@ -478,7 +601,7 @@ REGLAS CRITICAS:
               <h2 className="text-2xl font-bold text-gray-800">Prioridades del Ano</h2>
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Que espera el area de ti este ano?</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Que debes lograr este ano para impulsar los objetivos del area?</label>
               <textarea
                 rows="3"
                 className="w-full p-3 border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
@@ -558,9 +681,9 @@ REGLAS CRITICAS:
             <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <CheckCircle2 className="text-green-600" /> Plan Individual de Desempeno
+                  <CheckCircle2 className="text-green-600" /> Plan de Desempeno {new Date().getFullYear()}
                 </h2>
-                <p className="text-xs text-gray-500 font-medium">Revision de objetivos para {new Date().getFullYear()}</p>
+                <p className="text-xs text-gray-500 font-medium">Tus 5 objetivos SMART con IA, listos para revisar y personalizar</p>
               </div>
             </div>
 
@@ -614,6 +737,23 @@ REGLAS CRITICAS:
                                 onChange={(e) => updateGoal(idx, 'target', e.target.value)}
                               />
                             </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase">Como se medira</label>
+                              <input
+                                className="w-full p-2 border rounded-lg text-xs mt-1"
+                                value={goal.measurementType || ''}
+                                onChange={(e) => updateGoal(idx, 'measurementType', e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-400 uppercase">Tiempo de cumplimiento</label>
+                              <input
+                                className="w-full p-2 border rounded-lg text-xs mt-1"
+                                placeholder="Ej: Dic 2026 o 31/12/2026"
+                                value={goal.deadline || ''}
+                                onChange={(e) => updateGoal(idx, 'deadline', e.target.value)}
+                              />
+                            </div>
                           </div>
                         </div>
                       ) : (
@@ -630,6 +770,17 @@ REGLAS CRITICAS:
                             </div>
                           </div>
 
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-emerald-50 p-2 rounded-xl border border-emerald-100">
+                              <span className="block text-[10px] text-emerald-500 font-bold uppercase">Medible (SMART-M)</span>
+                              <span className="text-sm font-bold text-emerald-800">{goal.measurementType || 'Definir metodo de medicion'}</span>
+                            </div>
+                            <div className="bg-indigo-50 p-2 rounded-xl border border-indigo-100">
+                              <span className="block text-[10px] text-indigo-500 font-bold uppercase">Tiempo de cumplimiento (SMART-T)</span>
+                              <span className="text-sm font-bold text-indigo-800">{goal.deadline || 'Definir fecha compromiso'}</span>
+                            </div>
+                          </div>
+
                           <div className="flex flex-col md:flex-row gap-2 pt-4 border-t border-gray-50">
                             <button
                               disabled={!!actionLoading}
@@ -641,7 +792,7 @@ REGLAS CRITICAS:
                               ) : (
                                 <ListChecks size={14} />
                               )}
-                              Mi Plan Individual
+                              Que acciones te ayudaran a alcanzar tu objetivo?
                             </button>
                             <button
                               disabled={!!actionLoading}
@@ -653,7 +804,7 @@ REGLAS CRITICAS:
                               ) : (
                                 <ShieldAlert size={14} />
                               )}
-                              Autogestion Riesgos
+                              Que podria impedir que alcances tu objetivo?
                             </button>
                           </div>
                         </div>
@@ -665,12 +816,37 @@ REGLAS CRITICAS:
             </div>
 
             <div className="flex flex-col items-center gap-4 pt-8 border-t">
-              <button
-                onClick={() => window.print()}
-                className="bg-gray-900 text-white px-12 py-4 rounded-2xl font-bold shadow-2xl hover:bg-black transition-all hover:scale-105 active:scale-95"
-              >
-                Exportar para Mi Evaluacion
-              </button>
+              <div className="w-full rounded-2xl border border-sky-100 bg-sky-50/70 p-4 md:p-5">
+                <h3 className="text-sm md:text-base font-extrabold text-sky-900 uppercase tracking-wide">Prototipo Final de Metodologia SMART</h3>
+                <p className="text-xs text-sky-700 mt-1">Cada objetivo queda trazable con metrica de medicion y tiempo de cumplimiento comprometido.</p>
+                <div className="mt-4 space-y-2">
+                  {goals.map((goal, idx) => (
+                    <div key={`smart-${idx}`} className="rounded-xl border border-sky-100 bg-white px-3 py-2">
+                      <p className="text-xs font-bold text-slate-800">{idx + 1}. {goal.description}</p>
+                      <p className="text-[11px] text-slate-600 mt-1"><span className="font-bold text-emerald-700">Medible:</span> {goal.measurementType || `${goal.indicator} contra ${goal.target}`}</p>
+                      <p className="text-[11px] text-slate-600"><span className="font-bold text-indigo-700">Tiempo:</span> {goal.deadline || 'Pendiente de definir'}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-3 w-full justify-center">
+                <button
+                  onClick={() => window.print()}
+                  className="bg-gray-900 text-white px-12 py-4 rounded-2xl font-bold shadow-2xl hover:bg-black transition-all hover:scale-105 active:scale-95"
+                >
+                  Exportar PDF
+                </button>
+                <button
+                  onClick={() => sendToSheets(userData, goals, setError, setSuccess)}
+                  className="bg-green-600 text-white px-12 py-4 rounded-2xl font-bold shadow-2xl hover:bg-green-700 transition-all hover:scale-105 active:scale-95"
+                >
+                  Registrar en Google Sheets
+                </button>
+              </div>
+              {success && (
+                <div className="mt-4 text-green-700 text-sm font-bold text-center">{success}</div>
+              )}
               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest text-center max-w-xs">
                 Recuerda: Estas metas son de tu responsabilidad directa y seran evaluadas al cierre del ano.
               </p>
@@ -683,25 +859,36 @@ REGLAS CRITICAS:
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 p-4 md:p-8 font-sans">
-      <div className="max-w-4xl mx-auto">
-        <header className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black shadow-lg shadow-blue-200">U</div>
-            <span className="font-bold text-xl tracking-tighter">
-              Tus Objetivos <span className="text-blue-600">USIL</span>
-            </span>
+    <div className="min-h-screen p-3 md:p-6 font-sans">
+      <div className="app-shell">
+        <header className="topbar-usil">
+          <div className="topbar-main">
+            <div>
+              <h1 className="topbar-title">Objetivos USIL: Tu Ruta de Resultados</h1>
+              <p className="topbar-subtitle">Crea metas SMART con IA para priorizar mejor y avanzar con foco en tu dia a dia</p>
+            </div>
+            <div className="topbar-logo-shell">
+              <img
+                src={CORPORATE_LOGO_SRC}
+                alt="Corporacion USIL"
+                className="topbar-logo"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
           </div>
-          <div className="hidden md:block px-4 py-1.5 bg-white rounded-full border border-gray-200 text-xs font-bold text-gray-500 shadow-sm">
+          <div className="mt-4 inline-block px-4 py-1.5 bg-white/15 rounded-full border border-white/35 text-xs font-bold text-blue-50 shadow-sm">
             {step === 4 ? 'Plan Anual Listado' : `Paso ${step + 1} de 4`}
           </div>
         </header>
 
-        <section className="mb-6 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 md:p-5">
+        <div className="content-wrap">
+        <section className="mb-6 rounded-2xl border border-blue-100 bg-blue-50/65 p-4 md:p-5 backdrop-blur-sm">
           <div className="flex flex-col md:flex-row gap-3 md:items-end">
             <div className="flex-1">
               <label className="block text-[11px] font-bold uppercase tracking-wide text-blue-700 mb-1">
-                API Key de Gemini
+                API Key de Gemini o Groq
               </label>
               <input
                 type="password"
@@ -710,7 +897,7 @@ REGLAS CRITICAS:
                   setRuntimeApiKey(e.target.value);
                   setIsApiKeySaved(false);
                 }}
-                placeholder="Pega tu API key (AI Studio) para activar recomendaciones IA"
+                placeholder="Pega tu API key de Gemini o Groq para activar recomendaciones IA"
                 className="w-full rounded-xl border border-blue-200 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
               />
             </div>
@@ -737,7 +924,7 @@ REGLAS CRITICAS:
           ))}
         </div>
 
-        <main className="bg-white rounded-[3rem] p-6 md:p-12 shadow-2xl shadow-slate-200/50 min-h-[550px] border border-gray-50 relative">
+        <main className="bg-white/86 rounded-[2rem] p-6 md:p-10 shadow-xl shadow-slate-300/40 min-h-[550px] border border-white/80 relative backdrop-blur-sm">
           <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
             <Target size={250} />
           </div>
@@ -780,10 +967,11 @@ REGLAS CRITICAS:
           </div>
         )}
 
-        <footer className="mt-12 text-center text-gray-400 text-[10px] font-bold uppercase tracking-widest flex flex-col gap-2">
+        <footer className="mt-10 text-center text-gray-400 text-[10px] font-bold uppercase tracking-widest flex flex-col gap-2">
           <span>Enfoque en Autonomia y Resultados Directos</span>
           <span>Desarrollado con Inteligencia Artificial Gemini 2026</span>
         </footer>
+        </div>
       </div>
     </div>
   );

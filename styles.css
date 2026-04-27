@@ -10,5 +10,139 @@ body,
 }
 
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Aptos', 'Segoe UI Variable Text', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #0d1f3c;
+  background:
+    radial-gradient(ellipse 60% 52% at 8% 10%, rgba(26, 70, 180, 0.38) 0%, transparent 62%),
+    radial-gradient(ellipse 44% 40% at 92% 8%, rgba(8, 50, 140, 0.30) 0%, transparent 58%),
+    radial-gradient(ellipse 50% 44% at 50% 100%, rgba(14, 42, 108, 0.28) 0%, transparent 68%),
+    radial-gradient(ellipse 36% 32% at 78% 48%, rgba(72, 130, 220, 0.18) 0%, transparent 56%),
+    linear-gradient(158deg, #c8dcf8 0%, #dce9fb 32%, #e8f2ff 58%, #d0e3fa 100%);
+  position: relative;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  width: 480px;
+  height: 480px;
+  left: -160px;
+  top: 8vh;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(30, 86, 200, 0.30) 0%, transparent 70%);
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  width: 400px;
+  height: 400px;
+  right: -120px;
+  top: 30vh;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(90, 150, 240, 0.26) 0%, transparent 70%);
+  filter: blur(55px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app-shell {
+  position: relative;
+  z-index: 1;
+  max-width: 980px;
+  margin: 20px auto 36px;
+  background: rgba(255, 255, 255, 0.86);
+  border-radius: 32px;
+  border: 1.5px solid rgba(255, 255, 255, 0.76);
+  box-shadow:
+    0 32px 72px rgba(6, 22, 58, 0.22),
+    0 4px 12px rgba(6, 22, 58, 0.10),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px) saturate(125%) brightness(1.02);
+  -webkit-backdrop-filter: blur(14px) saturate(125%) brightness(1.02);
+  overflow: hidden;
+}
+
+.topbar-usil {
+  background: linear-gradient(148deg, rgba(5, 25, 68, 0.98) 0%, rgba(10, 46, 112, 0.97) 50%, rgba(18, 72, 158, 0.96) 100%);
+  color: #fff;
+  padding: 24px 26px 20px;
+  position: relative;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.topbar-usil::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.68) 40%, rgba(255, 255, 255, 0.90) 50%, rgba(255, 255, 255, 0.68) 60%, transparent 100%);
+}
+
+.topbar-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.topbar-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.28);
+}
+
+.topbar-subtitle {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: rgba(200, 222, 255, 0.92);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.topbar-logo-shell {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.80);
+  border-radius: 14px;
+  padding: 6px 10px;
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.32),
+    0 2px 6px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.topbar-logo {
+  display: block;
+  height: 72px;
+  width: auto;
+  object-fit: contain;
+}
+
+.content-wrap {
+  padding: 24px;
+}
+
+@media (max-width: 900px) {
+  .topbar-title {
+    font-size: 20px;
+  }
+
+  .topbar-logo {
+    height: 56px;
+  }
+
+  .content-wrap {
+    padding: 16px;
+  }
 }
